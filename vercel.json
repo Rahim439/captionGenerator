@@ -11,6 +11,10 @@
     ],
     "routes": [
       {
+        "src": "/api/v1/predictions",
+        "dest": "https://caption-generator-xi.vercel.app/api/v1/predictions"
+      },
+      {
         "src": "/api/(.*)",
         "dest": "/api/index.js"
       },
