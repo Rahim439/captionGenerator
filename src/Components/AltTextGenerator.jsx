@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 function AltTextGenerator() {
   const [imageUrl, setImageUrl] = useState("");
@@ -27,7 +27,7 @@ function AltTextGenerator() {
     setAltText("");
 
     try {
-      console.log("API Token:", import.meta.env.VITE_API_TOKEN);
+      console.log("API Token:", import.meta.env.VITE_REPLICATE_API_TOKEN); // Log only for debugging
 
       const requestBody = {
         version:
@@ -37,8 +37,6 @@ function AltTextGenerator() {
           task: "image_captioning",
         },
       };
-
-      console.log("Request Body:", requestBody);
 
       const response = await fetch("/api/v1/predictions", {
         method: "POST",
@@ -50,9 +48,9 @@ function AltTextGenerator() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.text(); // Fetch text for non-JSON response
         console.error("API Error:", errorData);
-        throw new Error(errorData.error || "Failed to generate alt text.");
+        throw new Error(errorData || "Failed to generate alt text.");
       }
 
       const data = await response.json();
@@ -73,6 +71,22 @@ function AltTextGenerator() {
       setIsLoading(false);
     }
   };
+
+  // Automatically hide the snackbar after a few seconds
+  useEffect(() => {
+    if (showSnackbar) {
+      const timer = setTimeout(() => {
+        setShowSnackbar(false);
+      }, 3000); // Adjust duration as needed
+      return () => clearTimeout(timer);
+    }
+  }, [showSnackbar]);
+
+  // Clear alt text if the URL changes
+  useEffect(() => {
+    setAltText("");
+    setError("");
+  }, [imageUrl]);
 
   return (
     <div className="max-w-md p-6 mx-auto my-10 bg-white rounded-lg shadow-lg">
