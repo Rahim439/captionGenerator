@@ -27,7 +27,7 @@ function AltTextGenerator() {
     setAltText("");
 
     try {
-      console.log("API Token:", import.meta.env.VITE_REPLICATE_API_TOKEN);
+      console.log("API Token:", import.meta.env.VITE_API_TOKEN);
 
       const requestBody = {
         version:
