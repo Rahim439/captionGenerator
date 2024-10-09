@@ -27,18 +27,18 @@ function AltTextGenerator() {
     setAltText("");
 
     try {
-      console.log("API Token:", import.meta.env.VITE_REPLICATE_API_TOKEN); // Log only for debugging
+      console.log("API Token:", import.meta.env.VITE_REPLICATE_API_TOKEN); // Debugging
 
+      // Step 1: Initiate prediction
       const requestBody = {
         version:
           "2e1dddc8621f72155f24cf2e0adbde548458d3cab9f00c0139eea840d0ac4746",
         input: {
           image: imageUrl,
-          task: "image_captioning",
         },
       };
 
-      const response = await fetch("/api/v1/predictions", {
+      const predictionResponse = await fetch("/api/v1/predictions/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -47,22 +47,41 @@ function AltTextGenerator() {
         body: JSON.stringify(requestBody),
       });
 
-      if (!response.ok) {
-        const errorData = await response.text(); // Fetch text for non-JSON response
+      if (!predictionResponse.ok) {
+        const errorData = await predictionResponse.text();
         console.error("API Error:", errorData);
-        throw new Error(errorData || "Failed to generate alt text.");
+        throw new Error(errorData || "Failed to initiate prediction.");
       }
 
-      const data = await response.json();
-      console.log("API Response:", data);
+      const predictionData = await predictionResponse.json();
+      console.log("Prediction initiated:", predictionData);
 
-      if (data.output) {
-        setAltText(data.output);
-      } else {
-        setError("No alt text generated.");
-        console.warn("Output is null:", data);
+      // Step 2: Poll for prediction result
+      let predictionResult = null;
+      while (!predictionResult) {
+        const resultResponse = await fetch(
+          `/api/v1/predictions/${predictionData.id}`,
+          {
+            headers: {
+              Authorization: `Token ${
+                import.meta.env.VITE_REPLICATE_API_TOKEN
+              }`,
+            },
+          }
+        );
+
+        const resultData = await resultResponse.json();
+
+        if (resultData.status === "succeeded") {
+          predictionResult = resultData.output;
+        } else if (resultData.status === "failed") {
+          throw new Error("Prediction failed.");
+        } else {
+          await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait and retry
+        }
       }
 
+      setAltText(predictionResult);
       setShowSnackbar(true);
     } catch (err) {
       setError(err.message || "An error occurred while generating alt text.");
@@ -72,17 +91,15 @@ function AltTextGenerator() {
     }
   };
 
-  // Automatically hide the snackbar after a few seconds
   useEffect(() => {
     if (showSnackbar) {
       const timer = setTimeout(() => {
         setShowSnackbar(false);
-      }, 3000); // Adjust duration as needed
+      }, 3000);
       return () => clearTimeout(timer);
     }
   }, [showSnackbar]);
 
-  // Clear alt text if the URL changes
   useEffect(() => {
     setAltText("");
     setError("");
