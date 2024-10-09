@@ -6,9 +6,6 @@ function AltTextGenerator() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [showSnackbar, setShowSnackbar] = useState(false);
-  const [predictionId, setPredictionId] = useState(null);
-
-  const API_TOKEN = import.meta.env.VITE_REPLICATE_API_TOKEN;
 
   const isValidUrl = (url) => {
     try {
@@ -17,34 +14,6 @@ function AltTextGenerator() {
     } catch (_) {
       return false;
     }
-  };
-
-  const createPrediction = async () => {
-    const response = await fetch("https://api.replicate.com/v1/predictions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Token ${API_TOKEN}`,
-      },
-      body: JSON.stringify({
-        version:
-          "2e1dddc8621f72155f24cf2e0adbde548458d3cab9f00c0139eea840d0ac4746",
-        input: { image: imageUrl },
-      }),
-    });
-    return response.json();
-  };
-
-  const getPrediction = async (id) => {
-    const response = await fetch(
-      `https://api.replicate.com/v1/predictions/${id}`,
-      {
-        headers: {
-          Authorization: `Token ${API_TOKEN}`,
-        },
-      }
-    );
-    return response.json();
   };
 
   const handleGenerateAltText = async () => {
@@ -56,69 +25,68 @@ function AltTextGenerator() {
     setIsLoading(true);
     setError("");
     setAltText("");
-    setPredictionId(null);
 
     try {
-      const prediction = await createPrediction();
-      console.log("Initial Prediction:", prediction);
+      console.log("API Token:", import.meta.env.VITE_REPLICATE_API_TOKEN); // Log only for debugging
 
-      if (prediction.id) {
-        setPredictionId(prediction.id);
-      } else {
-        throw new Error("Failed to start prediction.");
+      const requestBody = {
+        version:
+          "2e1dddc8621f72155f24cf2e0adbde548458d3cab9f00c0139eea840d0ac4746",
+        input: {
+          image: imageUrl,
+          task: "image_captioning",
+        },
+      };
+
+      const response = await fetch("/api/v1/predictions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Token ${import.meta.env.VITE_REPLICATE_API_TOKEN}`,
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.text(); // Fetch text for non-JSON response
+        console.error("API Error:", errorData);
+        throw new Error(errorData || "Failed to generate alt text.");
       }
+
+      const data = await response.json();
+      console.log("API Response:", data);
+
+      if (data.output) {
+        setAltText(data.output);
+      } else {
+        setError("No alt text generated.");
+        console.warn("Output is null:", data);
+      }
+
+      setShowSnackbar(true);
     } catch (err) {
       setError(err.message || "An error occurred while generating alt text.");
       console.error("Fetch error:", err);
+    } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    let pollInterval;
-
-    const pollForResult = async () => {
-      if (predictionId) {
-        try {
-          const prediction = await getPrediction(predictionId);
-          console.log("Polling Response:", prediction);
-
-          if (prediction.status === "succeeded" && prediction.output) {
-            setAltText(prediction.output);
-            setIsLoading(false);
-            setShowSnackbar(true);
-            clearInterval(pollInterval);
-          } else if (prediction.status === "failed") {
-            setError("Alt text generation failed.");
-            setIsLoading(false);
-            clearInterval(pollInterval);
-          }
-        } catch (err) {
-          console.error("Polling error:", err);
-          setError("Error while fetching result.");
-          setIsLoading(false);
-          clearInterval(pollInterval);
-        }
-      }
-    };
-
-    if (predictionId) {
-      pollInterval = setInterval(pollForResult, 2000); // Poll every 2 seconds
-    }
-
-    return () => {
-      if (pollInterval) clearInterval(pollInterval);
-    };
-  }, [predictionId]);
-
+  // Automatically hide the snackbar after a few seconds
   useEffect(() => {
     if (showSnackbar) {
       const timer = setTimeout(() => {
         setShowSnackbar(false);
-      }, 3000);
+      }, 3000); // Adjust duration as needed
       return () => clearTimeout(timer);
     }
   }, [showSnackbar]);
+
+  // Clear alt text if the URL changes
+  useEffect(() => {
+    setAltText("");
+    setError("");
+  }, [imageUrl]);
 
   return (
     <div className="max-w-md p-6 mx-auto my-10 bg-white rounded-lg shadow-lg">
